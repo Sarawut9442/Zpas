@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z-PAS Command Center | Hologram Edition</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Fonts: Sarabun (สำหรับภาษาไทย) และ Rajdhani (สำหรับตัวเลข/ภาษาอังกฤษ) -->
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --cyan-glow: rgba(34, 211, 238, 0.6);
+            --red-glow: rgba(239, 68, 68, 0.7);
+            --bg-glass: rgba(8, 25, 40, 0.65);
+        }
+
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #020617; 
+            color: #cffafe;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.1) 0%, transparent 60%),
+                linear-gradient(rgba(34, 211, 238, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(34, 211, 238, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 30px 30px, 30px 30px;
+        }
+
+        .font-hud { font-family: 'Rajdhani', sans-serif; }
+
+        /* Scanline Animation */
+        .scanline {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 5px;
+            background: linear-gradient(to bottom, transparent, rgba(34, 211, 238, 0.4), transparent);
+            opacity: 0.5;
+            animation: scan 4s linear infinite;
+            pointer-events: none;
+            z-index: 9999;
+        }
+        @keyframes scan {
+            0% { top: -10%; }
+            100% { top: 110%; }
+        }
+
+        /* Glassmorphism / Hologram Panels */
+        .holo-panel {
+            background: var(--bg-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(34, 211, 238, 0.2);
+            box-shadow: inset 0 0 20px rgba(34, 211, 238, 0.05), 0 4px 6px rgba(0, 0, 0, 0.5);
+        }
+
+        .holo-border { border: 1px solid rgba(34, 211, 238, 0.4); }
+        .holo-border-b { border-bottom: 1px solid rgba(34, 211, 238, 0.2); }
+        .holo-border-r { border-right: 1px solid rgba(34, 211, 238, 0.2); }
+        .holo-border-l { border-left: 1px solid rgba(34, 211, 238, 0.2); }
+
+        .text-glow { text-shadow: 0 0 8px rgba(34, 211, 238, 0.8); }
+        .text-glow-red { text-shadow: 0 0 8px rgba(239, 68, 68, 0.8); }
+        
+        /* Map Customizations */
+        #map { box-shadow: inset 0 0 50px rgba(6, 182, 212, 0.3); }
+        .leaflet-container { background: #020617; font-family: 'Sarabun', sans-serif;}
+        
+        /* Hologram Map Markers */
+        .custom-marker {
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; font-size: 14px;
+            background: rgba(2, 6, 23, 0.7);
+            backdrop-filter: blur(2px);
+            transition: all 0.3s ease;
+        }
+        .status-online { 
+            border: 2px solid #22d3ee; color: #22d3ee; 
+            box-shadow: 0 0 10px #22d3ee, inset 0 0 10px rgba(34, 211, 238, 0.5); 
+        }
+        .status-offline { 
+            border: 2px solid #64748b; color: #64748b; 
+            box-shadow: 0 0 5px #64748b; 
+        }
+        .status-powerlost { 
+            border: 2px solid #ef4444; color: #ef4444; 
+            animation: pulse-holo-red 1.5s infinite; 
+        }
+        .status-broadcasting { 
+            border: 2px solid #eab308; color: #eab308; 
+            animation: pulse-holo-yellow 1s infinite; 
+        }
+
+        @keyframes pulse-holo-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7), inset 0 0 10px rgba(239, 68, 68, 0.5); }
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0), inset 0 0 5px rgba(239, 68, 68, 0.1); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0), inset 0 0 10px rgba(239, 68, 68, 0.5); }
+        }
+        @keyframes pulse-holo-yellow {
+            0% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.8), inset 0 0 10px rgba(234, 179, 8, 0.5); }
+            70% { box-shadow: 0 0 0 20px rgba(234, 179, 8, 0), inset 0 0 5px rgba(234, 179, 8, 0.1); }
+            100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0), inset 0 0 10px rgba(234, 179, 8, 0.5); }
+        }
+
+        /* Leaflet Popup HUD Style */
+        .leaflet-popup-content-wrapper {
+            background: rgba(8, 25, 40, 0.9); border: 1px solid #22d3ee;
+            border-radius: 4px; color: #cffafe; box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+        }
+        .leaflet-popup-tip { background: rgba(8, 25, 40, 0.9); border: 1px solid #22d3ee; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(34, 211, 238, 0.3); border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(34, 211, 238, 0.6); }
+
+        /* Disable Selection */
+        .no-select { user-select: none; -webkit-user-select: none; }
+
+        select option { background: #081928; color: #22d3ee; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+    <div class="scanline"></div>
+
+    <!-- Top Navigation Bar -->
+    <header class="holo-panel holo-border-b p-3 md:p-4 flex flex-wrap justify-between items-center z-20 flex-shrink-0">
+        <div class="flex items-center gap-3 w-full md:w-auto mb-2 md:mb-0">
+            <div class="border border-cyan-400 text-cyan-400 p-2 rounded shadow-[0_0_10px_#22d3ee] flex items-center justify-center">
+                <i class="fa-solid fa-satellite-dish text-lg md:text-xl text-glow"></i>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold text-cyan-300 tracking-wide text-glow font-hud">Z-PAS COMMAND LINK</h1>
+                <p class="text-[10px] md:text-xs text-cyan-600 font-medium">ศูนย์บัญชาการแจ้งเตือนภัยพิบัติระดับจังหวัด (M.D.R.C.)</p>
+            </div>
+        </div>
+        <div class="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto text-xs md:text-sm text-cyan-400 font-semibold font-hud">
+            <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#22d3ee]"></div>
+                <span>LINK SECURE (12ms)</span>
+            </div>
+            <div class="border border-cyan-700 bg-cyan-950/50 px-3 py-1 rounded text-cyan-300 flex items-center font-sans">
+                <i class="fa-solid fa-user-shield mr-2"></i>เจ้าหน้าที่ปฏิบัติการ
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <div class="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden relative z-10">
+        
+        <!-- Left Sidebar: Controls -->
+        <aside class="w-full md:w-80 holo-panel md:holo-border-r flex flex-col z-10 flex-shrink-0 md:h-full md:overflow-y-auto">
+            
+            <!-- Hierarchy Selector -->
+            <div class="p-4 holo-border-b">
+                <h2 class="text-sm font-bold text-cyan-500 mb-3 flex items-center">
+                    <i class="fa-solid fa-crosshairs mr-2"></i> กำหนดพื้นที่เป้าหมาย
+                </h2>
+                <div class="space-y-2 text-sm font-medium">
+                    <select class="w-full p-2 rounded bg-transparent holo-border text-cyan-300 outline-none focus:border-cyan-300 focus:shadow-[0_0_10px_rgba(34,211,238,0.3)] transition-all" disabled>
+                        <option value="ratchaburi">จังหวัด: ราชบุรี</option>
+                    </select>
+                    <select class="w-full p-2 rounded bg-transparent holo-border text-cyan-300 outline-none focus:border-cyan-300 transition-all cursor-pointer" id="districtSelect" onchange="previewArea()">
+                        <option value="all">-- ทุกอำเภอ (ทั้งจังหวัด) --</option>
+                        <option value="mueang" selected>อำเภอเมืองราชบุรี</option>
+                        <option value="banpong">อำเภอบ้านโป่ง</option>
+                    </select>
+                </div>
+                <button onclick="setTargetArea()" class="mt-3 w-full bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 p-2 rounded transition-all text-sm holo-border hover:shadow-[0_0_15px_rgba(34,211,238,0.4)] flex justify-center items-center font-bold">
+                    <i class="fa-solid fa-lock mr-2"></i> ล็อกพิกัดเป้าหมาย
+                </button>
+            </div>
+
+            <!-- Pre-recorded Sirens -->
+            <div class="p-4 holo-border-b">
+                <h2 class="text-sm font-bold text-red-400 mb-3 flex items-center">
+                    <i class="fa-solid fa-triangle-exclamation mr-2"></i> ระบบประกาศฉุกเฉิน (Siren)
+                </h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="sendAlert('เตือนภัยน้ำท่วมฉับพลัน', 'flood')" class="bg-transparent border border-blue-500/50 hover:border-blue-400 text-blue-400 hover:text-blue-300 p-3 rounded flex flex-col items-center justify-center gap-2 transition-all hover:shadow-[0_0_15px_rgba(59,130,246,0.5)] active:scale-95 bg-blue-950/20">
+                        <i class="fa-solid fa-water text-2xl"></i>
+                        <span class="text-xs font-bold">ระวังน้ำท่วม</span>
+                    </button>
+                    <button onclick="sendAlert('เตือนภัยพายุรุนแรง', 'storm')" class="bg-transparent border border-purple-500/50 hover:border-purple-400 text-purple-400 hover:text-purple-300 p-3 rounded flex flex-col items-center justify-center gap-2 transition-all hover:shadow-[0_0_15px_rgba(168,85,247,0.5)] active:scale-95 bg-purple-950/20">
+                        <i class="fa-solid fa-wind text-2xl"></i>
+                        <span class="text-xs font-bold">ระวังพายุ</span>
+                    </button>
+                    <button onclick="sendAlert('ประกาศอพยพด่วน', 'evacuate')" class="col-span-2 bg-red-950/30 border border-red-500/60 hover:border-red-400 text-red-400 p-3 rounded flex justify-center items-center gap-2 transition-all hover:shadow-[0_0_20px_rgba(239,68,68,0.6)] active:scale-95">
+                        <i class="fa-solid fa-biohazard text-xl text-glow-red"></i>
+                        <span class="text-sm font-bold text-glow-red">คำสั่งอพยพฉุกเฉิน</span>
+                    </button>
+                </div>
+                <button onclick="cancelAlert()" class="mt-3 w-full bg-transparent hover:bg-slate-800/50 text-slate-400 p-2 rounded transition-colors text-xs border border-slate-600 active:scale-95 font-bold">
+                    <i class="fa-solid fa-power-off mr-1"></i> ระงับสัญญาณประกาศทั้งหมด
+                </button>
+            </div>
+
+            <!-- Push to Talk -->
+            <div class="p-4 md:p-6 flex-1 flex flex-col items-center justify-center min-h-[250px] relative">
+                <!-- Target Indicator -->
+                <div class="mb-6 border border-cyan-800 bg-cyan-950/40 px-4 py-1.5 rounded-full flex items-center gap-2 max-w-full shadow-[0_0_10px_rgba(34,211,238,0.1)] font-medium">
+                    <span class="w-2 h-2 rounded-full bg-orange-400 animate-pulse shadow-[0_0_5px_#fb923c]"></span>
+                    <span class="text-xs text-cyan-200 truncate" id="currentTargetDisplay">เป้าหมาย: อำเภอเมืองราชบุรี</span>
+                    <button onclick="resetTarget()" id="resetTargetBtn" class="hidden ml-2 text-cyan-600 hover:text-red-400 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                
+                <!-- Hologram PTT Button -->
+                <div class="relative">
+                    <div class="absolute inset-0 rounded-full border border-cyan-500/30 animate-ping"></div>
+                    <button id="pttBtn" class="no-select relative z-10 w-32 h-32 md:w-36 md:h-36 rounded-full bg-cyan-950/40 border-2 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.4)] flex flex-col items-center justify-center transition-all hover:bg-cyan-900/60 active:scale-95 touch-none">
+                        <i class="fa-solid fa-microphone text-3xl md:text-4xl mb-2 text-cyan-300 pointer-events-none text-glow" id="pttIcon"></i>
+                        <span class="text-sm font-bold text-cyan-300 pointer-events-none" id="pttText">กดค้างเพื่อพูด</span>
+                    </button>
+                </div>
+                
+                <div id="pttStatus" class="mt-6 text-xs text-red-400 font-bold h-4 opacity-0 transition-opacity flex items-center font-hud">
+                    <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse mr-2"></div>
+                    กำลังกระจายเสียง <span id="recordTimer" class="ml-2 text-white">00:00</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center: GIS Map -->
+        <main class="w-full h-[50vh] md:h-auto md:flex-1 relative z-0 flex-shrink-0 bg-black">
+            <!-- Map Container -->
+            <div id="map" class="w-full h-full opacity-90"></div>
+            
+            <!-- Map Vignette Overlay -->
+            <div class="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(2,6,23,1)] z-[399]"></div>
+            
+            <!-- Map Legend HUD -->
+            <div class="absolute bottom-4 left-4 z-[400] holo-panel p-3 rounded border border-cyan-500/30 text-[10px] md:text-xs">
+                <h3 class="font-bold text-cyan-300 mb-2 border-b border-cyan-800 pb-1">สถานะหอกระจายเสียง</h3>
+                <div class="flex items-center gap-2 mb-1.5 text-cyan-100">
+                    <div class="w-2.5 h-2.5 rounded-full border border-cyan-400 shadow-[0_0_5px_#22d3ee]"></div> <span>ทำงานปกติ (ออนไลน์)</span>
+                </div>
+                <div class="flex items-center gap-2 mb-1.5 text-slate-400">
+                    <div class="w-2.5 h-2.5 rounded-full border border-slate-500"></div> <span>ขาดการเชื่อมต่อ (ออฟไลน์)</span>
+                </div>
+                <div class="flex items-center gap-2 mb-1.5 text-yellow-300">
+                    <div class="w-2.5 h-2.5 rounded-full border border-yellow-400 shadow-[0_0_8px_#facc15] animate-pulse"></div> <span>กำลังกระจายเสียง</span>
+                </div>
+                <div class="flex items-center gap-2 text-red-400 font-bold">
+                    <div class="w-2.5 h-2.5 rounded-full border border-red-500 shadow-[0_0_8px_#ef4444] animate-pulse"></div> <span>ไฟหลักดับ (ใช้แบตสำรอง)</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Sidebar: System Logs HUD -->
+        <aside class="w-full md:w-72 holo-panel md:holo-border-l flex flex-col z-10 flex-shrink-0 h-[40vh] md:h-full">
+            <!-- Critical Banner -->
+            <div id="criticalAlertBanner" class="hidden bg-red-950/80 border-b border-red-500/50 p-2 md:p-3 text-[10px] md:text-xs text-red-200 shadow-[0_0_15px_rgba(239,68,68,0.3)] flex-shrink-0 font-bold">
+                <i class="fa-solid fa-triangle-exclamation mr-2 animate-pulse text-red-500"></i>
+                ตรวจพบไฟฟ้าขัดข้อง! อุปกรณ์เข้าสู่โหมดแบตสำรอง
+            </div>
+
+            <div class="p-3 md:p-4 holo-border-b flex justify-between items-center flex-shrink-0 sticky top-0 bg-[rgba(8,25,40,0.95)]">
+                <h2 class="text-sm font-bold text-cyan-500 flex items-center">
+                    <i class="fa-solid fa-terminal mr-2"></i> ประวัติการสั่งงาน
+                </h2>
+                <button onclick="clearLogs()" class="text-cyan-700 hover:text-cyan-400 transition-colors" title="ล้างประวัติ"><i class="fa-solid fa-trash-can"></i></button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-3 md:p-4 space-y-2" id="logContainer">
+                <!-- Logs generated here -->
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Security PIN Modal (Hologram Style) -->
+    <div id="pinModal" class="hidden fixed inset-0 z-[500] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="holo-panel p-8 w-full max-w-sm rounded-lg relative overflow-hidden">
+            <!-- decorative corners -->
+            <div class="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-400"></div>
+            <div class="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-400"></div>
+            <div class="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-400"></div>
+            <div class="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-400"></div>
+
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-red-950/50 border border-red-500/50 text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_15px_rgba(239,68,68,0.4)]">
+                    <i class="fa-solid fa-shield-halved text-3xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white text-glow">ยืนยันรหัสความปลอดภัย</h3>
+                <p class="text-xs text-cyan-600 mt-2 font-medium">เพื่อยืนยันคำสั่ง โปรดระบุรหัส PIN 4 หลัก<br>[ รหัสทดสอบ: <span class="text-cyan-300 font-hud text-sm">1234</span> ]</p>
+            </div>
+            
+            <div class="space-y-5">
+                <div>
+                    <input type="password" id="pinInput" inputmode="numeric" pattern="[0-9]*" maxlength="4" 
+                        class="w-full bg-black/50 border border-cyan-800 rounded p-3 text-center text-3xl tracking-[0.5em] text-cyan-300 focus:outline-none focus:border-cyan-400 focus:shadow-[0_0_15px_rgba(34,211,238,0.4)] transition-all font-hud"
+                        placeholder="••••" onkeydown="handlePinKeydown(event)">
+                    <p id="pinError" class="text-red-500 text-xs text-center mt-2 hidden font-bold text-glow-red"><i class="fa-solid fa-circle-exclamation mr-1"></i>รหัส PIN ไม่ถูกต้อง</p>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3 mt-2">
+                    <button onclick="closePinModal()" class="w-full bg-transparent text-cyan-600 hover:text-cyan-400 p-2 rounded text-sm font-bold transition-colors border border-cyan-900 hover:border-cyan-700">
+                        ยกเลิก
+                    </button>
+                    <button onclick="submitPin()" class="w-full bg-red-950/40 hover:bg-red-900/60 text-red-400 p-2 rounded text-sm font-bold transition-colors border border-red-500/50 hover:shadow-[0_0_15px_rgba(239,68,68,0.5)]">
+                        อนุมัติคำสั่ง
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        // --- 1. Web Audio API (ระบบสังเคราะห์เสียงจำลอง) ---
+        const SysAudioContext = window.AudioContext || window.webkitAudioContext;
+        let sysAudioCtx;
+        let sirenOsc = null;
+        let sirenGain = null;
+
+        function initAudio() {
+            if (!sysAudioCtx) sysAudioCtx = new SysAudioContext();
+            if (sysAudioCtx.state === 'suspended') sysAudioCtx.resume();
+        }
+
+        function playTone(freq, type, duration, vol = 0.1) {
+            initAudio();
+            const osc = sysAudioCtx.createOscillator();
+            const gain = sysAudioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, sysAudioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, sysAudioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, sysAudioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(sysAudioCtx.destination);
+            osc.start();
+            osc.stop(sysAudioCtx.currentTime + duration);
+        }
+
+        function playPTTStart() {
+            playTone(1200, 'sine', 0.1, 0.1);
+            setTimeout(() => playTone(1500, 'sine', 0.1, 0.1), 100);
+        }
+
+        function playPTTStop() {
+            playTone(800, 'sine', 0.15, 0.1);
+        }
+
+        function startSirenAudio() {
+            initAudio();
+            stopSirenAudio();
+            sirenOsc = sysAudioCtx.createOscillator();
+            sirenGain = sysAudioCtx.createGain();
+            sirenOsc.type = 'square'; 
+            sirenGain.gain.value = 0.05; 
+            const now = sysAudioCtx.currentTime;
+            sirenOsc.frequency.setValueAtTime(600, now);
+            
+            for (let i = 0; i < 10; i++) { 
+                sirenOsc.frequency.linearRampToValueAtTime(1200, now + (i * 0.5) + 0.25);
+                sirenOsc.frequency.linearRampToValueAtTime(600, now + (i * 0.5) + 0.5);
+            }
+            sirenOsc.connect(sirenGain);
+            sirenGain.connect(sysAudioCtx.destination);
+            sirenOsc.start();
+            sirenOsc.stop(now + 5);
+        }
+
+        function stopSirenAudio() {
+            if(sirenOsc) {
+                try { sirenOsc.stop(); } catch(e){}
+                sirenOsc.disconnect();
+                sirenOsc = null;
+            }
+        }
+
+        // --- 2. Mock Data ---
+        const devices = [
+            { id: 'TH-MUEANG-01', name: 'ศาลากลางราชบุรี', district: 'mueang', lat: 13.5358, lng: 99.8180, status: 'online', power: 'ac' },
+            { id: 'TH-MUEANG-02', name: 'อบต. หน้าเมือง', district: 'mueang', lat: 13.5280, lng: 99.8220, status: 'online', power: 'ac' },
+            { id: 'TH-MUEANG-03', name: 'ชุมชนริมน้ำ (จุดเสี่ยง)', district: 'mueang', lat: 13.5410, lng: 99.8300, status: 'online', power: 'ac' },
+            { id: 'TH-MUEANG-04', name: 'หอเตือนภัย เทศบาล', district: 'mueang', lat: 13.5200, lng: 99.8100, status: 'offline', power: 'unknown' },
+            { id: 'TH-MUEANG-05', name: 'ชุมชนสะพานขึง', district: 'mueang', lat: 13.5300, lng: 99.8000, status: 'online', power: 'battery' },
+            { id: 'TH-BANPONG-01', name: 'ที่ว่าการอำเภอบ้านโป่ง', district: 'banpong', lat: 13.8150, lng: 99.8750, status: 'online', power: 'ac' },
+            { id: 'TH-BANPONG-02', name: 'ตลาดบ้านโป่ง', district: 'banpong', lat: 13.8100, lng: 99.8700, status: 'online', power: 'ac' },
+            { id: 'TH-BANPONG-03', name: 'อบต. ท่าผา', district: 'banpong', lat: 13.8250, lng: 99.8650, status: 'online', power: 'ac' }
+        ];
+
+        let map;
+        let markers = {};
+        let targetMode = 'area'; 
+        let currentTargetId = null; 
+
+        // --- 3. Map Initialization ---
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([13.5300, 99.8150], 13);
+            L.control.zoom({ position: 'topright' }).addTo(map);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+
+            devices.forEach(device => createMarker(device));
+            checkPowerAlerts();
+            addLog('ระบบ', 'โหลดระบบแผนที่และเซนเซอร์สำเร็จ', 'success');
+        }
+
+        function createMarker(device) {
+            let statusClass = 'status-online';
+            let iconCode = '<i class="fa-solid fa-tower-broadcast"></i>';
+
+            if (device.status === 'offline') {
+                statusClass = 'status-offline'; iconCode = '<i class="fa-solid fa-xmark"></i>';
+            } else if (device.status === 'broadcasting') {
+                statusClass = 'status-broadcasting'; iconCode = '<i class="fa-solid fa-satellite-dish animate-pulse"></i>';
+            } else if (device.power === 'battery') {
+                statusClass = 'status-powerlost'; iconCode = '<i class="fa-solid fa-battery-quarter"></i>';
+            }
+
+            const icon = L.divIcon({
+                className: '',
+                html: `<div class="custom-marker w-6 h-6 md:w-8 md:h-8 ${statusClass}">${iconCode}</div>`,
+                iconSize: [window.innerWidth < 768 ? 24 : 32, window.innerWidth < 768 ? 24 : 32],
+                iconAnchor: [window.innerWidth < 768 ? 12 : 16, window.innerWidth < 768 ? 12 : 16]
+            });
+
+            const popupContent = `
+                <div class="text-[10px] md:text-sm pb-1 mb-2 border-b border-cyan-800 font-bold">
+                    <span class="text-cyan-400 font-hud">[ ${device.id} ]</span><br>
+                    <span class="text-white">${device.name}</span>
+                </div>
+                <div class="text-[10px] md:text-xs mb-3 text-cyan-200">
+                    <div><span class="font-bold">พื้นที่:</span> ${device.district === 'mueang' ? 'อ.เมืองราชบุรี' : 'อ.บ้านโป่ง'}</div>
+                    <div><span class="font-bold">เครือข่าย:</span> ${device.status === 'online' ? '<span class="text-cyan-400 font-bold">เชื่อมต่อปกติ</span>' : (device.status === 'offline' ? '<span class="text-slate-500">ขาดการติดต่อ</span>' : '<span class="text-yellow-400 font-bold animate-pulse">กำลังกระจายเสียง</span>')}</div>
+                    <div><span class="font-bold">พลังงาน:</span> ${device.power === 'ac' ? 'ไฟบ้าน 220V' : (device.power === 'battery' ? '<span class="text-red-400 font-bold animate-pulse">ใช้แบตเตอรี่ (ไฟดับ)</span>' : 'ไม่ทราบสถานะ')}</div>
+                </div>
+                <button onclick="targetSingleDevice('${device.id}')" class="w-full bg-cyan-950/50 hover:bg-cyan-900 text-cyan-300 p-1 md:p-1.5 rounded border border-cyan-700 text-[10px] md:text-xs transition-colors font-bold">
+                    <i class="fa-solid fa-crosshairs"></i> ล็อกพิกัดเฉพาะจุดนี้
+                </button>
+            `;
+
+            if (markers[device.id]) {
+                markers[device.id].setIcon(icon);
+                markers[device.id].setPopupContent(popupContent);
+            } else {
+                markers[device.id] = L.marker([device.lat, device.lng], { icon: icon })
+                    .bindPopup(popupContent)
+                    .addTo(map);
+            }
+        }
+
+        // --- 4. UI Logic: Targeting ---
+        window.previewArea = function() {
+            const district = document.getElementById('districtSelect').value;
+            if (district === 'mueang') map.setView([13.5300, 99.8150], 13);
+            else if (district === 'banpong') map.setView([13.8150, 99.8700], 13);
+            else map.setView([13.6500, 99.8400], 10); 
+        };
+
+        window.setTargetArea = function() {
+            targetMode = 'area'; currentTargetId = null;
+            const district = document.getElementById('districtSelect').value;
+            let targetText = district === 'all' ? 'ทุกอำเภอ (ทั้งจังหวัด)' : (district === 'mueang' ? 'อ.เมืองราชบุรี' : 'อ.บ้านโป่ง');
+            updateTargetUI(`เป้าหมาย: ${targetText}`);
+            addLog('ระบบ', `เปลี่ยนพื้นที่เป้าหมายเป็น: ${targetText}`, 'info');
+            previewArea();
+        };
+
+        window.targetSingleDevice = function(deviceId) {
+            map.closePopup();
+            targetMode = 'single'; currentTargetId = deviceId;
+            const dev = devices.find(d => d.id === deviceId);
+            updateTargetUI(`เป้าหมาย: ${dev.name}`);
+            addLog('ระบบ', `ล็อกเป้าหมายเฉพาะ: ${dev.name}`, 'info');
+            document.getElementById('resetTargetBtn').classList.remove('hidden');
+        };
+
+        window.resetTarget = function() { setTargetArea(); };
+
+        function updateTargetUI(text) {
+            document.getElementById('currentTargetDisplay').innerText = text;
+            if (targetMode === 'area') document.getElementById('resetTargetBtn').classList.add('hidden');
+            else document.getElementById('resetTargetBtn').classList.remove('hidden');
+        }
+
+        function getTargetDevices() {
+            const district = document.getElementById('districtSelect').value;
+            return devices.filter(d => {
+                if (d.status === 'offline') return false;
+                if (targetMode === 'single') return d.id === currentTargetId;
+                if (district === 'all') return true;
+                return d.district === district;
+            });
+        }
+
+        // --- 5. Security PIN & Broadcast ---
+        let pendingAlertName = null; 
+        let pendingTargets = null;
+
+        window.sendAlert = function(alertName, type) {
+            const targets = getTargetDevices();
+            if(targets.length === 0) {
+                addLog('ล้มเหลว', 'ไม่พบอุปกรณ์ที่ออนไลน์ในพื้นที่เป้าหมาย', 'error');
+                return;
+            }
+            
+            pendingAlertName = alertName;
+            pendingTargets = targets;
+            
+            openPinModal();
+        };
+
+        function openPinModal() {
+            document.getElementById('pinModal').classList.remove('hidden');
+            document.getElementById('pinInput').value = '';
+            document.getElementById('pinError').classList.add('hidden');
+            document.getElementById('pinInput').focus();
+        }
+
+        window.closePinModal = function() {
+            document.getElementById('pinModal').classList.add('hidden');
+            pendingAlertName = null;
+            pendingTargets = null;
+        };
+
+        window.submitPin = function() {
+            const input = document.getElementById('pinInput').value;
+            if(input === '1234') {
+                const alertToExecute = pendingAlertName;
+                const targetsToExecute = pendingTargets;
+                
+                closePinModal();
+                
+                if(targetsToExecute) {
+                    executeAlert(alertToExecute, targetsToExecute);
+                }
+            } else {
+                document.getElementById('pinError').classList.remove('hidden');
+                document.getElementById('pinInput').value = '';
+                document.getElementById('pinInput').focus();
+                addLog('ความปลอดภัย', 'การยืนยันรหัสล้มเหลว (PIN ผิด)', 'error');
+            }
+        };
+
+        window.handlePinKeydown = function(e) { if(e.key === 'Enter') submitPin(); }
+
+        function executeAlert(alertName, targets) {
+            addLog('สั่งการ', `ส่งคำสั่งเสียง "${alertName}" ไปยังเป้าหมาย ${targets.length} จุด`, 'warning');
+            
+            targets.forEach(d => { 
+                d.status = 'broadcasting'; 
+                createMarker(d); 
+            });
+
+            startSirenAudio(); // เล่นเสียงไซเรน
+
+            setTimeout(() => { 
+                cancelAlert(true); 
+            }, 5000);
+        }
+
+        window.cancelAlert = function(auto = false) {
+            if(!auto) addLog('สั่งการ', 'ส่งสัญญาณระงับเสียงประกาศทั้งหมด', 'info');
+            
+            devices.forEach(d => { 
+                if(d.status === 'broadcasting') { 
+                    d.status = 'online'; 
+                    createMarker(d); 
+                }
+            });
+
+            stopSirenAudio(); // หยุดเสียงไซเรน
+        };
+
+        function checkPowerAlerts() {
+            const hasPowerLoss = devices.some(d => d.power === 'battery' && d.status !== 'offline');
+            if(hasPowerLoss) document.getElementById('criticalAlertBanner').classList.remove('hidden');
+            else document.getElementById('criticalAlertBanner').classList.add('hidden');
+        }
+
+        // --- 6. PTT Logic ---
+        const pttBtn = document.getElementById('pttBtn');
+        const pttIcon = document.getElementById('pttIcon');
+        const pttText = document.getElementById('pttText');
+        const pttStatus = document.getElementById('pttStatus');
+        const recordTimer = document.getElementById('recordTimer');
+        
+        let pttActive = false; let pttInterval; let seconds = 0; let activeTargets = [];
+
+        function startPTT(e) {
+            if(e) e.preventDefault(); 
+            if(pttActive) return;
+            
+            activeTargets = getTargetDevices();
+            if(activeTargets.length === 0) { addLog('ล้มเหลว', 'ไม่พบอุปกรณ์ที่ออนไลน์สำหรับพูดสด', 'error'); return; }
+
+            playPTTStart(); // เล่นเสียงกดไมค์
+            pttActive = true;
+            
+            pttBtn.classList.replace('bg-cyan-950/40', 'bg-red-950/60');
+            pttBtn.classList.replace('border-cyan-400', 'border-red-500');
+            pttBtn.classList.replace('shadow-[0_0_20px_rgba(34,211,238,0.4)]', 'shadow-[0_0_30px_rgba(239,68,68,0.6)]');
+            pttBtn.classList.replace('hover:bg-cyan-900/60', 'hover:bg-red-900/80');
+            pttIcon.classList.replace('text-cyan-300', 'text-red-400');
+            pttIcon.classList.replace('fa-microphone', 'fa-tower-broadcast');
+            pttIcon.classList.add('animate-pulse');
+            pttText.innerText = "กำลังรับเสียง";
+            pttText.classList.replace('text-cyan-300', 'text-red-400');
+            pttStatus.classList.remove('opacity-0');
+
+            seconds = 0; recordTimer.innerText = "00:00";
+            pttInterval = setInterval(() => {
+                seconds++;
+                recordTimer.innerText = `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+            }, 1000);
+
+            activeTargets.forEach(d => { d.status = 'broadcasting'; createMarker(d); });
+        }
+
+        function stopPTT(e) {
+            if(e) e.preventDefault();
+            if(!pttActive) return;
+
+            playPTTStop(); // เล่นเสียงปล่อยไมค์
+            pttActive = false;
+
+            pttBtn.classList.replace('bg-red-950/60', 'bg-cyan-950/40');
+            pttBtn.classList.replace('border-red-500', 'border-cyan-400');
+            pttBtn.classList.replace('shadow-[0_0_30px_rgba(239,68,68,0.6)]', 'shadow-[0_0_20px_rgba(34,211,238,0.4)]');
+            pttBtn.classList.replace('hover:bg-red-900/80', 'hover:bg-cyan-900/60');
+            pttIcon.classList.replace('text-red-400', 'text-cyan-300');
+            pttIcon.classList.replace('fa-tower-broadcast', 'fa-microphone');
+            pttIcon.classList.remove('animate-pulse');
+            pttText.innerText = "กดค้างเพื่อพูด";
+            pttText.classList.replace('text-red-400', 'text-cyan-300');
+            pttStatus.classList.add('opacity-0');
+
+            clearInterval(pttInterval);
+
+            if(seconds > 0) addLog('สำเร็จ', `ส่งแพ็กเกจเสียง PTT สำเร็จ (${seconds} วินาที)`, 'success');
+            setTimeout(() => { cancelAlert(true); }, 500);
+        }
+
+        pttBtn.addEventListener('mousedown', startPTT);
+        pttBtn.addEventListener('mouseup', stopPTT);
+        pttBtn.addEventListener('mouseleave', stopPTT);
+        pttBtn.addEventListener('touchstart', startPTT, {passive: false});
+        pttBtn.addEventListener('touchend', stopPTT, {passive: false});
+        pttBtn.addEventListener('touchcancel', stopPTT, {passive: false});
+
+        // --- 7. Activity Log ---
+        window.addLog = function(type, message, level = 'info') {
+            const container = document.getElementById('logContainer');
+            const timeStr = new Date().toLocaleTimeString('th-TH', { hour12: false });
+            
+            let colorClass = 'text-cyan-400 border-cyan-800 bg-cyan-950/20';
+            let icon = 'fa-angle-right text-cyan-500';
+
+            if (level === 'warning') { colorClass = 'text-yellow-300 border-yellow-800 bg-yellow-950/20'; icon = 'fa-triangle-exclamation text-yellow-500'; }
+            else if (level === 'success') { colorClass = 'text-green-300 border-green-800 bg-green-950/20'; icon = 'fa-check text-green-500'; }
+            else if (level === 'error') { colorClass = 'text-red-300 border-red-800 bg-red-950/20'; icon = 'fa-xmark text-red-500'; }
+
+            const logHtml = `
+                <div class="text-[10px] md:text-xs p-2 rounded-r border-l-2 ${colorClass} mb-2">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="font-bold"><i class="fa-solid ${icon} mr-2"></i>[${type}]</span>
+                        <span class="text-cyan-600/70 text-[8px] md:text-[10px] font-hud">${timeStr}</span>
+                    </div>
+                    <p class="leading-relaxed opacity-90">${message}</p>
+                </div>
+            `;
+            container.insertAdjacentHTML('afterbegin', logHtml);
+        }
+
+        window.clearLogs = function() {
+            document.getElementById('logContainer').innerHTML = '';
+            addLog('ระบบ', 'ล้างประวัติคำสั่งทั้งหมด', 'info');
+        };
+
+        window.addEventListener('resize', () => { if(map) map.invalidateSize(); });
+        window.onload = initMap;
+    </script>
+</body>
+</html>
