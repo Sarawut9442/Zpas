@@ -132,7 +132,6 @@
 <body class="h-screen flex flex-col overflow-hidden">
     <div class="scanline"></div>
 
-    <!-- Top Navigation Bar -->
     <header class="holo-panel holo-border-b p-3 md:p-4 flex flex-wrap justify-between items-center z-20 flex-shrink-0">
         <div class="flex items-center gap-3 w-full md:w-auto mb-2 md:mb-0">
             <div class="border border-cyan-400 text-cyan-400 p-2 rounded shadow-[0_0_10px_#22d3ee] flex items-center justify-center">
@@ -154,7 +153,6 @@
         </div>
     </header>
 
-    <!-- Main Content Area -->
     <div class="flex flex-col md:flex-row flex-1 overflow-y-auto md:overflow-hidden relative z-10">
         
         <!-- Left Sidebar: Controls -->
@@ -220,7 +218,7 @@
                 <!-- Target Indicator -->
                 <div class="mb-6 border border-cyan-800 bg-cyan-950/40 px-4 py-1.5 rounded-full flex items-center gap-2 max-w-full shadow-[0_0_10px_rgba(34,211,238,0.1)] font-medium">
                     <span class="w-2 h-2 rounded-full bg-orange-400 animate-pulse shadow-[0_0_5px_#fb923c]"></span>
-                    <span class="text-xs text-cyan-200 truncate" id="currentTargetDisplay">เป้าหมาย: อำเภอเมืองราชบุรี</span>
+                    <span class="text-xs text-cyan-200 truncate" id="currentTargetDisplay">เป้าหมาย: ทั้งจังหวัดราชบุรี</span>
                     <button onclick="resetTarget()" id="resetTargetBtn" class="hidden ml-2 text-cyan-600 hover:text-red-400 transition-colors"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 
@@ -389,7 +387,7 @@
             }
         }
 
-        // --- 2. Hierarchy Data & Mock Devices ---
+        // --- 2. Hierarchy Data & Mock Devices (ฐานข้อมูล 4 ระดับ) ---
         
         // ฐานข้อมูลลำดับชั้นการปกครองจำลอง
         const geoData = {
@@ -427,11 +425,14 @@
             { id: 'TH-MUE-NM-01', name: 'ศาลากลางราชบุรี', district: 'mueang', subdistrict: 'namueang', village: 'v3', lat: 13.5358, lng: 99.8180, status: 'online', power: 'ac' },
             { id: 'TH-MUE-NM-02', name: 'ชุมชนริมน้ำ (จุดเสี่ยง)', district: 'mueang', subdistrict: 'namueang', village: 'v1', lat: 13.5410, lng: 99.8300, status: 'online', power: 'ac' },
             { id: 'TH-MUE-NM-03', name: 'ชุมชนสะพานขึง', district: 'mueang', subdistrict: 'namueang', village: 'v2', lat: 13.5300, lng: 99.8000, status: 'online', power: 'battery' },
+            
             // อ.เมือง -> ต.พงสวาย
             { id: 'TH-MUE-PS-01', name: 'หอเตือนภัย หมู่ 1', district: 'mueang', subdistrict: 'phongsawai', village: 'm1', lat: 13.5200, lng: 99.8100, status: 'offline', power: 'unknown' },
+            
             // อ.บ้านโป่ง -> ทม.บ้านโป่ง
             { id: 'TH-BAN-BP-01', name: 'ตลาดบ้านโป่ง', district: 'banpong', subdistrict: 'banpong_muni', village: 'c1', lat: 13.8100, lng: 99.8700, status: 'online', power: 'ac' },
             { id: 'TH-BAN-BP-02', name: 'ที่ว่าการอำเภอ', district: 'banpong', subdistrict: 'banpong_muni', village: 'c2', lat: 13.8150, lng: 99.8750, status: 'online', power: 'ac' },
+            
             // อ.บ้านโป่ง -> ต.ท่าผา
             { id: 'TH-BAN-TP-01', name: 'อบต. ท่าผา', district: 'banpong', subdistrict: 'thapha', village: 'm1', lat: 13.8250, lng: 99.8650, status: 'online', power: 'ac' }
         ];
@@ -441,7 +442,7 @@
         let targetMode = 'area'; 
         let currentTargetId = null; 
 
-        // --- 3. Initialization ---
+        // --- STREAMING_CHUNK:Initializing Map and UI Components... ---
         function initMap() {
             map = L.map('map', { zoomControl: false }).setView([13.6500, 99.8400], 11);
             L.control.zoom({ position: 'topright' }).addTo(map);
@@ -452,7 +453,7 @@
 
             devices.forEach(device => createMarker(device));
             checkPowerAlerts();
-            initDropdowns();
+            initDropdowns(); // เริ่มต้นโหลดรายชื่ออำเภอ
             addLog('ระบบ', 'โหลดระบบแผนที่และเซนเซอร์สำเร็จ', 'success');
         }
 
@@ -484,7 +485,7 @@
                 iconAnchor: [window.innerWidth < 768 ? 12 : 16, window.innerWidth < 768 ? 12 : 16]
             });
 
-            // ดึงชื่อลำดับชั้นมาแสดง
+            // ดึงชื่อลำดับชั้นมาแสดงให้สวยงาม
             let addrStr = "";
             if(geoData[device.district]) {
                 const distData = geoData[device.district];
@@ -499,7 +500,7 @@
                     <span class="text-white">${device.name}</span>
                 </div>
                 <div class="text-[10px] md:text-xs mb-3 text-cyan-200">
-                    <div class="truncate text-cyan-500 text-[9px] mb-1"><i class="fa-solid fa-location-dot mr-1"></i>${addrStr}</div>
+                    <div class="truncate text-cyan-500 text-[9px] mb-1"><i class="fa-solid fa-location-dot mr-1"></i> ${addrStr}</div>
                     <div><span class="font-bold">เครือข่าย:</span> ${device.status === 'online' ? '<span class="text-cyan-400 font-bold">เชื่อมต่อปกติ</span>' : (device.status === 'offline' ? '<span class="text-slate-500">ขาดการติดต่อ</span>' : '<span class="text-yellow-400 font-bold animate-pulse">กำลังกระจายเสียง</span>')}</div>
                     <div><span class="font-bold">พลังงาน:</span> ${device.power === 'ac' ? 'ไฟบ้าน 220V' : (device.power === 'battery' ? '<span class="text-red-400 font-bold animate-pulse">ใช้แบตเตอรี่ (ไฟดับ)</span>' : 'ไม่ทราบสถานะ')}</div>
                 </div>
@@ -518,23 +519,25 @@
             }
         }
 
-        // --- 4. UI Logic: Cascading Targeting ---
+        // --- STREAMING_CHUNK:Defining Cascading UI Logic... ---
         
-        // เมื่อเปลี่ยนอำเภอ
+        // เมื่อเปลี่ยนอำเภอ (District)
         window.onDistrictChange = function() {
             const distVal = document.getElementById('districtSelect').value;
             const subSelect = document.getElementById('subdistrictSelect');
             const vilSelect = document.getElementById('villageSelect');
             
+            // ล้างค่าตำบลและหมู่บ้าน
             subSelect.innerHTML = '<option value="all">-- ทุกตำบล/เทศบาล --</option>';
             vilSelect.innerHTML = '<option value="all">-- ทุกหมู่บ้าน/ชุมชน --</option>';
             vilSelect.disabled = true; vilSelect.classList.add('opacity-50');
 
             if(distVal === 'all') {
                 subSelect.disabled = true; subSelect.classList.add('opacity-50');
-                map.setView([13.6500, 99.8400], 10);
+                map.setView([13.6500, 99.8400], 10); // ซูมดูทั้งจังหวัด
             } else {
                 subSelect.disabled = false; subSelect.classList.remove('opacity-50');
+                // โหลดข้อมูลตำบล
                 const subdistricts = geoData[distVal].subdistricts;
                 for (const [key, data] of Object.entries(subdistricts)) {
                     subSelect.innerHTML += `<option value="${key}">${data.name}</option>`;
@@ -543,12 +546,13 @@
             }
         };
 
-        // เมื่อเปลี่ยนตำบล
+        // เมื่อเปลี่ยนตำบล (Sub-district)
         window.onSubdistrictChange = function() {
             const distVal = document.getElementById('districtSelect').value;
             const subVal = document.getElementById('subdistrictSelect').value;
             const vilSelect = document.getElementById('villageSelect');
             
+            // ล้างค่าหมู่บ้าน
             vilSelect.innerHTML = '<option value="all">-- ทุกหมู่บ้าน/ชุมชน --</option>';
 
             if(subVal === 'all') {
@@ -556,6 +560,7 @@
                 map.setView([geoData[distVal].lat, geoData[distVal].lng], geoData[distVal].zoom);
             } else {
                 vilSelect.disabled = false; vilSelect.classList.remove('opacity-50');
+                // โหลดข้อมูลหมู่บ้าน
                 const villages = geoData[distVal].subdistricts[subVal].villages;
                 for (const [key, name] of Object.entries(villages)) {
                     vilSelect.innerHTML += `<option value="${key}">${name}</option>`;
@@ -565,9 +570,9 @@
             }
         };
 
-        // เมื่อเปลี่ยนหมู่บ้าน (แค่ซูม ไม่ต้องสร้าง Dropdown ต่อ)
+        // เมื่อเปลี่ยนหมู่บ้าน
         window.onVillageChange = function() {
-            // ในระบบจริงอาจจะซูมลึกระดับหมู่บ้านได้
+            // อาจจะเพิ่มการซูมไปที่หมุดหมู่บ้านเฉพาะเจาะจงในอนาคตได้ครับ
         };
 
         window.setTargetArea = function() {
@@ -579,6 +584,7 @@
             
             let targetText = "ทั้งจังหวัดราชบุรี";
             
+            // สร้างข้อความสะท้อนการเลือก (Feedback)
             if(distSelect.value !== 'all') {
                 targetText = distSelect.options[distSelect.selectedIndex].text;
                 if(subSelect.value !== 'all') {
@@ -604,7 +610,7 @@
 
         window.resetTarget = function() { 
             document.getElementById('districtSelect').value = 'all';
-            onDistrictChange(); // Reset cascade
+            onDistrictChange(); // รีเซ็ต cascading
             setTargetArea(); 
         };
 
@@ -614,15 +620,15 @@
             else document.getElementById('resetTargetBtn').classList.remove('hidden');
         }
 
-        // กรองหาอุปกรณ์ที่ตรงกับลำดับชั้นที่เลือก
+        // กรองหาอุปกรณ์ที่ตรงกับลำดับชั้น 4 ระดับที่เลือก
         function getTargetDevices() {
             const dist = document.getElementById('districtSelect').value;
             const sub = document.getElementById('subdistrictSelect').value;
             const vil = document.getElementById('villageSelect').value;
 
             return devices.filter(d => {
-                if (d.status === 'offline') return false;
-                if (targetMode === 'single') return d.id === currentTargetId;
+                if (d.status === 'offline') return false; // หอพัง สั่งไม่ได้
+                if (targetMode === 'single') return d.id === currentTargetId; // โหมดเจาะจงหอเดียว
                 
                 // เช็คเงื่อนไขจากใหญ่ไปเล็ก
                 if (dist !== 'all' && d.district !== dist) return false;
@@ -633,7 +639,7 @@
             });
         }
 
-        // --- 5. Security PIN & Broadcast ---
+        // --- STREAMING_CHUNK:Configuring Security and Broadcasts... ---
         let pendingAlertName = null; 
         let pendingTargets = null;
 
@@ -646,7 +652,6 @@
             
             pendingAlertName = alertName;
             pendingTargets = targets;
-            
             openPinModal();
         };
 
@@ -668,9 +673,7 @@
             if(input === '1234') {
                 const alertToExecute = pendingAlertName;
                 const targetsToExecute = pendingTargets;
-                
                 closePinModal();
-                
                 if(targetsToExecute) {
                     executeAlert(alertToExecute, targetsToExecute);
                 }
@@ -686,30 +689,15 @@
 
         function executeAlert(alertName, targets) {
             addLog('สั่งการ', `ส่งคำสั่งเสียง "${alertName}" ไปยังเป้าหมาย ${targets.length} จุด`, 'warning');
-            
-            targets.forEach(d => { 
-                d.status = 'broadcasting'; 
-                createMarker(d); 
-            });
-
-            startSirenAudio(); // เล่นเสียงไซเรน
-
-            setTimeout(() => { 
-                cancelAlert(true); 
-            }, 5000);
+            targets.forEach(d => { d.status = 'broadcasting'; createMarker(d); });
+            startSirenAudio(); 
+            setTimeout(() => { cancelAlert(true); }, 5000);
         }
 
         window.cancelAlert = function(auto = false) {
             if(!auto) addLog('สั่งการ', 'ส่งสัญญาณระงับเสียงประกาศทั้งหมด', 'info');
-            
-            devices.forEach(d => { 
-                if(d.status === 'broadcasting') { 
-                    d.status = 'online'; 
-                    createMarker(d); 
-                }
-            });
-
-            stopSirenAudio(); // หยุดเสียงไซเรน
+            devices.forEach(d => { if(d.status === 'broadcasting') { d.status = 'online'; createMarker(d); }});
+            stopSirenAudio(); 
         };
 
         function checkPowerAlerts() {
@@ -718,7 +706,7 @@
             else document.getElementById('criticalAlertBanner').classList.add('hidden');
         }
 
-        // --- 6. PTT Logic ---
+        // --- STREAMING_CHUNK:Setting up Push-to-Talk Interactions... ---
         const pttBtn = document.getElementById('pttBtn');
         const pttIcon = document.getElementById('pttIcon');
         const pttText = document.getElementById('pttText');
@@ -734,7 +722,7 @@
             activeTargets = getTargetDevices();
             if(activeTargets.length === 0) { addLog('ล้มเหลว', 'ไม่พบอุปกรณ์ที่ออนไลน์สำหรับพูดสด', 'error'); return; }
 
-            playPTTStart(); // เล่นเสียงกดไมค์
+            playPTTStart(); // เสียงกดไมค์
             pttActive = true;
             
             pttBtn.classList.replace('bg-cyan-950/40', 'bg-red-950/60');
@@ -761,7 +749,7 @@
             if(e) e.preventDefault();
             if(!pttActive) return;
 
-            playPTTStop(); // เล่นเสียงปล่อยไมค์
+            playPTTStop(); // เสียงปล่อยไมค์
             pttActive = false;
 
             pttBtn.classList.replace('bg-red-950/60', 'bg-cyan-950/40');
@@ -788,7 +776,7 @@
         pttBtn.addEventListener('touchend', stopPTT, {passive: false});
         pttBtn.addEventListener('touchcancel', stopPTT, {passive: false});
 
-        // --- 7. Activity Log ---
+        // --- STREAMING_CHUNK:Preparing System Logs... ---
         window.addLog = function(type, message, level = 'info') {
             const container = document.getElementById('logContainer');
             const timeStr = new Date().toLocaleTimeString('th-TH', { hour12: false });
